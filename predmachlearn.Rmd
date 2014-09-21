@@ -1,0 +1,83 @@
+---
+title: "Practical Machine Learning"
+output: html_document
+---
+
+This document describes the process of training, testing and validating a prediction model for predicting activity classes based on sensor data.
+
+## Getting the data
+
+Downloading the sensor data:
+
+```{r}
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "pml-training.csv", method="curl")
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "pml-testing.csv", method="curl")
+```
+
+## Loading the data
+
+Load the data set with training data and the set with the cases we want to predict. We consider empty strings, "NA" and "#DIV/0!" as missing values.
+
+```{r}
+projectData <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+projectQuestions <- read.csv("pml-testing.csv", na.strings = c("NA", "", "#DIV/0!"))
+```
+
+## Cleaning data
+
+We remove the useless variables: NA's and user_name, raw_timestamp_part_1.
+```{r}
+empty <- subset(names(projectQuestions), 
+                apply(projectQuestions, 2, function(x){ all(is.na(x) | x == 0)}))
+useless <- c(empty, "X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+```
+
+And filter them out of the data sets:
+
+```{r}
+projectData <- projectData[, !names(projectData) %in% useless]
+projectQuestions <- projectQuestions[, !names(projectQuestions) %in% useless]
+```
+
+## Available data
+
+The data consists of the following type of useful sensor data:
+
+* {gyros,accel,magnet}\_{belt,arm,dumbbell,forearm}\_{x,y,z}
+* {roll,yaw,pitch,total_accel}\_{belt,arm,dumbbell,forearm}
+
+## Testing and training set
+Because the testing data had no classe variable, we split the pml-training set in a test set (25%) and a training set (75%).
+```{r partition, message=FALSE, results='hide'}
+library(caret)
+set.seed(1234)
+inTrain <- createDataPartition(projectData$classe, p=0.75, list=F)
+training <- projectData[inTrain,]
+testing <- projectData[-inTrain,]
+```
+
+## Creating a prediction model
+
+Create a model using a random forest with 300 trees
+
+```{r rf, message=FALSE}
+library(randomForest)
+modelFit <- randomForest(classe ~ ., data=training, ntree=300)
+```
+
+Predict the outcome of the test set using the model.
+```{r}
+pred <- predict(modelFit, newdata=testing)
+```
+
+Validate the outcome op the prediction on the test set.
+
+```{r}
+confusionMatrix(pred, testing$classe)
+```
+
+The accuracy of the model is 99,6% which is enough to use it for predicting the outcome of the project questions.
+
+```{r}
+finalPred <- predict(modelFit, newdata=projectQuestions)
+```
